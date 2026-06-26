@@ -2,6 +2,10 @@
 
 package com.alculator.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,19 +13,24 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.alculator.data.Drink
 import com.alculator.data.VolumePreset
 import com.alculator.data.VolumeUnit
+import com.alculator.data.lookupBarcode
 import com.alculator.ui.theme.*
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 private val QUANTITIES = listOf(1, 2, 4, 6, 8, 12)
 
@@ -34,14 +43,43 @@ fun AddDrinkSheet(
     onDismiss: () -> Unit,
     editing: Drink? = null
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     var name by remember { mutableStateOf(editing?.name ?: "") }
     var price by remember { mutableStateOf(editing?.price?.let { fmtNum(it) } ?: "") }
     var abv by remember { mutableStateOf(editing?.abv?.let { fmtNum(it) } ?: "") }
-    // Editing always prefills volume in ml (singleVolumeMl is stored in ml).
     var volume by remember { mutableStateOf(editing?.singleVolumeMl?.let { fmtNum(it) } ?: "") }
     var selectedUnit by remember { mutableStateOf(VolumeUnit.ML) }
     var selectedQuantity by remember { mutableIntStateOf(editing?.quantity ?: 1) }
     var unitMenuExpanded by remember { mutableStateOf(false) }
+    var showScanner by remember { mutableStateOf(false) }
+    var isLooking by remember { mutableStateOf(false) }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) showScanner = true }
+
+    fun launchScanner() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED
+        ) showScanner = true
+        else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+
+    fun onBarcodeDetected(barcode: String) {
+        showScanner = false
+        isLooking = true
+        scope.launch {
+            val info = lookupBarcode(barcode)
+            isLooking = false
+            if (info != null) {
+                info.name?.let { name = it }
+                info.abv?.let { abv = fmtNum(it) }
+                info.volumeMl?.let { volume = fmtNum(it); selectedUnit = VolumeUnit.ML }
+            }
+        }
+    }
 
     val canAdd = price.toDoubleOrNull()?.let { it > 0 } == true &&
             abv.toDoubleOrNull()?.let { it > 0 } == true &&
@@ -61,12 +99,40 @@ fun AddDrinkSheet(
                 .padding(bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                if (editing != null) "Edit Drink" else "Add a Drink",
-                color = Espresso,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    if (editing != null) "Edit Drink" else "Add a Drink",
+                    color = Espresso,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+                if (isLooking) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        color = Clay,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    IconButton(onClick = { launchScanner() }) {
+                        Icon(
+                            Icons.Default.QrCodeScanner,
+                            contentDescription = "Scan barcode",
+                            tint = Clay
+                        )
+                    }
+                }
+            }
+
+            if (showScanner) {
+                BarcodeScannerDialog(
+                    onDetected = { onBarcodeDetected(it) },
+                    onDismiss = { showScanner = false }
+                )
+            }
 
             // Name
             OutlinedTextField(
