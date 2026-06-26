@@ -8,8 +8,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -18,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -120,13 +123,16 @@ fun AddDrinkSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = ChalkLight,
         dragHandle = { BottomSheetDefaults.DragHandle(color = Hairline) }
     ) {
         Column(
             modifier = Modifier
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 36.dp),
+                .padding(bottom = 8.dp)
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(
@@ -168,8 +174,11 @@ fun AddDrinkSheet(
                 )
             }
 
-            // Name with autocomplete
-            Box {
+            // Name with autocomplete (ExposedDropdownMenuBox preserves keyboard focus)
+            ExposedDropdownMenuBox(
+                expanded = suggestions.isNotEmpty() || isSearchingOnline,
+                onExpandedChange = { }
+            ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = {
@@ -181,13 +190,12 @@ fun AddDrinkSheet(
                     label = { Text("Name (optional)") },
                     placeholder = { Text("e.g. Stella Artois") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
                     colors = inputColors()
                 )
-                DropdownMenu(
+                ExposedDropdownMenu(
                     expanded = suggestions.isNotEmpty() || isSearchingOnline,
-                    onDismissRequest = { suggestions = emptyList(); isSearchingOnline = false },
-                    modifier = Modifier.fillMaxWidth()
+                    onDismissRequest = { suggestions = emptyList(); isSearchingOnline = false }
                 ) {
                     if (isSearchingOnline) {
                         DropdownMenuItem(
@@ -277,7 +285,7 @@ fun AddDrinkSheet(
                 Box {
                     OutlinedButton(
                         onClick = { unitMenuExpanded = true },
-                        modifier = Modifier.width(90.dp),
+                        modifier = Modifier.width(90.dp).focusProperties { canFocus = false },
                         border = BorderStroke(1.dp, Clay.copy(alpha = 0.45f)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Clay)
                     ) {
@@ -388,7 +396,7 @@ private fun PresetChip(label: String, selected: Boolean, onClick: () -> Unit) {
         shape = RoundedCornerShape(20.dp),
         color = if (selected) Clay else Sand,
         border = BorderStroke(0.5.dp, if (selected) Clay else Hairline),
-        modifier = Modifier.height(32.dp)
+        modifier = Modifier.height(32.dp).focusProperties { canFocus = false }
     ) {
         Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
             Text(
