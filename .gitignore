@@ -1,0 +1,26 @@
+# Android / Gradle
+.gradle/
+build/
+app/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+local.properties
+*.keystore
+*.jks
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+
+# Generated
+app/src/main/res/drawable-*/
+
+# Secrets (belt + braces)
+keystore/
+*.p12
