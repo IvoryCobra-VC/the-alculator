@@ -2,10 +2,6 @@
 
 package com.alculator.ui
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,21 +9,20 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import com.alculator.data.Drink
+import com.alculator.data.SearchResult
 import com.alculator.data.VolumePreset
 import com.alculator.data.VolumeUnit
-import com.alculator.data.lookupBarcode
+import com.alculator.data.searchLocal
+import com.alculator.data.searchOnline
 import com.alculator.ui.theme.*
 import java.util.UUID
 import kotlinx.coroutines.launch
@@ -43,7 +38,6 @@ fun AddDrinkSheet(
     onDismiss: () -> Unit,
     editing: Drink? = null
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var name by remember { mutableStateOf(editing?.name ?: "") }
@@ -53,32 +47,14 @@ fun AddDrinkSheet(
     var selectedUnit by remember { mutableStateOf(VolumeUnit.ML) }
     var selectedQuantity by remember { mutableIntStateOf(editing?.quantity ?: 1) }
     var unitMenuExpanded by remember { mutableStateOf(false) }
-    var showScanner by remember { mutableStateOf(false) }
-    var isLooking by remember { mutableStateOf(false) }
+    var suggestions by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
+    var isSearchingOnline by remember { mutableStateOf(false) }
 
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted -> if (granted) showScanner = true }
-
-    fun launchScanner() {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
-            == PackageManager.PERMISSION_GRANTED
-        ) showScanner = true
-        else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-    }
-
-    fun onBarcodeDetected(barcode: String) {
-        showScanner = false
-        isLooking = true
-        scope.launch {
-            val info = lookupBarcode(barcode)
-            isLooking = false
-            if (info != null) {
-                info.name?.let { name = it }
-                info.abv?.let { abv = fmtNum(it) }
-                info.volumeMl?.let { volume = fmtNum(it); selectedUnit = VolumeUnit.ML }
-            }
-        }
+    fun applyResult(result: SearchResult) {
+        name = result.name
+        result.abv?.let { abv = fmtNum(it) }
+        result.volumeMl?.let { volume = fmtNum(it); selectedUnit = VolumeUnit.ML }
+        suggestions = emptyList()
     }
 
     val canAdd = price.toDoubleOrNull()?.let { it > 0 } == true &&
@@ -99,51 +75,79 @@ fun AddDrinkSheet(
                 .padding(bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    if (editing != null) "Edit Drink" else "Add a Drink",
-                    color = Espresso,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
+            Text(
+                if (editing != null) "Edit Drink" else "Add a Drink",
+                color = Espresso,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp
+            )
+
+            // Name with autocomplete
+            Box {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = {
+                        name = it
+                        suggestions = searchLocal(it)
+                        isSearchingOnline = false
+                    },
+                    label = { Text("Name (optional)") },
+                    placeholder = { Text("e.g. Stella Artois") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = inputColors()
                 )
-                if (isLooking) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        color = Clay,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    IconButton(onClick = { launchScanner() }) {
-                        Icon(
-                            Icons.Default.QrCodeScanner,
-                            contentDescription = "Scan barcode",
-                            tint = Clay
+                DropdownMenu(
+                    expanded = suggestions.isNotEmpty() || isSearchingOnline,
+                    onDismissRequest = { suggestions = emptyList(); isSearchingOnline = false },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (isSearchingOnline) {
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Clay, strokeWidth = 2.dp)
+                                    Text("Searching…", color = Taupe)
+                                }
+                            },
+                            onClick = {}
                         )
+                    } else {
+                        suggestions.forEach { result ->
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(result.name, color = Espresso, fontSize = 14.sp)
+                                        Text(
+                                            listOfNotNull(
+                                                result.abv?.let { "${it}%" },
+                                                result.volumeMl?.let { "${it.toInt()}ml" }
+                                            ).joinToString(" · "),
+                                            color = Taupe,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                },
+                                onClick = { applyResult(result) }
+                            )
+                        }
+                        if (name.length >= 3) {
+                            DropdownMenuItem(
+                                text = { Text("Search online for \"$name\"", color = Clay, fontSize = 13.sp) },
+                                onClick = {
+                                    isSearchingOnline = true
+                                    suggestions = emptyList()
+                                    scope.launch {
+                                        val results = searchOnline(name)
+                                        isSearchingOnline = false
+                                        suggestions = results
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
-
-            if (showScanner) {
-                BarcodeScannerDialog(
-                    onDetected = { onBarcodeDetected(it) },
-                    onDismiss = { showScanner = false }
-                )
-            }
-
-            // Name
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Name (optional)") },
-                placeholder = { Text("e.g. Stella Artois") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = inputColors()
-            )
 
             // Price + ABV
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
