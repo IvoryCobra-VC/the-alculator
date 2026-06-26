@@ -19,7 +19,11 @@
 
 ## Screenshots
 
-*(Coming soon — take a peek at the store listing in the meantime.)*
+<p align="center">
+  <img src="playstore/screenshots/empty-state.jpg" width="220" alt="Empty state" />
+  <img src="playstore/screenshots/add-drink.jpg" width="220" alt="Add a drink" />
+  <img src="playstore/screenshots/ranked-list.jpg" width="220" alt="Ranked list" />
+</p>
 
 ## What it does
 
