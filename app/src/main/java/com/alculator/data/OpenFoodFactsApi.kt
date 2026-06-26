@@ -7,6 +7,26 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+private const val UA = "the-alculator/1.3 (github.com/IvoryCobra-VC/the-alculator)"
+
+suspend fun lookupNameFromBarcode(barcode: String): String? = withContext(Dispatchers.IO) {
+    try {
+        val url = URL("https://world.openfoodfacts.org/api/v0/product/$barcode.json")
+        val conn = url.openConnection() as HttpURLConnection
+        conn.connectTimeout = 6000
+        conn.readTimeout = 6000
+        conn.setRequestProperty("User-Agent", UA)
+        if (conn.responseCode != 200) return@withContext null
+        val json = JSONObject(conn.inputStream.bufferedReader().readText())
+        if (json.optInt("status") != 1) return@withContext null
+        json.optJSONObject("product")
+            ?.optString("product_name")
+            ?.takeIf { it.isNotBlank() }
+    } catch (_: Exception) {
+        null
+    }
+}
+
 suspend fun searchOnline(query: String): List<SearchResult> = withContext(Dispatchers.IO) {
     try {
         val encoded = URLEncoder.encode(query, "UTF-8")
@@ -18,7 +38,7 @@ suspend fun searchOnline(query: String): List<SearchResult> = withContext(Dispat
         val conn = url.openConnection() as HttpURLConnection
         conn.connectTimeout = 6000
         conn.readTimeout = 6000
-        conn.setRequestProperty("User-Agent", "the-alculator/1.2 (github.com/IvoryCobra-VC/the-alculator)")
+        conn.setRequestProperty("User-Agent", UA)
         if (conn.responseCode != 200) return@withContext emptyList()
         val json = JSONObject(conn.inputStream.bufferedReader().readText())
         val products = json.optJSONArray("products") ?: return@withContext emptyList()

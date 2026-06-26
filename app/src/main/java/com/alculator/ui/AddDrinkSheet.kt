@@ -2,6 +2,10 @@
 
 package com.alculator.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,18 +13,22 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.alculator.data.Drink
 import com.alculator.data.SearchResult
 import com.alculator.data.VolumePreset
 import com.alculator.data.VolumeUnit
+import com.alculator.data.lookupNameFromBarcode
 import com.alculator.data.searchLocal
 import com.alculator.data.searchOnline
 import com.alculator.ui.theme.*
@@ -38,6 +46,7 @@ fun AddDrinkSheet(
     onDismiss: () -> Unit,
     editing: Drink? = null
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var name by remember { mutableStateOf(editing?.name ?: "") }
@@ -49,6 +58,51 @@ fun AddDrinkSheet(
     var unitMenuExpanded by remember { mutableStateOf(false) }
     var suggestions by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
     var isSearchingOnline by remember { mutableStateOf(false) }
+    var showScanner by remember { mutableStateOf(false) }
+    var isLooking by remember { mutableStateOf(false) }
+    var scanNotFound by remember { mutableStateOf(false) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) showScanner = true }
+
+    fun launchScanner() {
+        scanNotFound = false
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED
+        ) showScanner = true
+        else cameraLauncher.launch(Manifest.permission.CAMERA)
+    }
+
+    fun onBarcodeDetected(barcode: String) {
+        showScanner = false
+        isLooking = true
+        scope.launch {
+            val productName = lookupNameFromBarcode(barcode)
+            if (productName == null) {
+                isLooking = false
+                scanNotFound = true
+                return@launch
+            }
+            // local DB first, then online
+            val local = searchLocal(productName)
+            if (local.isNotEmpty()) {
+                val r = local.first()
+                name = r.name; r.abv?.let { abv = fmtNum(it) }
+                r.volumeMl?.let { volume = fmtNum(it); selectedUnit = VolumeUnit.ML }
+            } else {
+                val online = searchOnline(productName)
+                if (online.isNotEmpty()) {
+                    val r = online.first()
+                    name = r.name; r.abv?.let { abv = fmtNum(it) }
+                    r.volumeMl?.let { volume = fmtNum(it); selectedUnit = VolumeUnit.ML }
+                } else {
+                    name = productName  // at least fill the name
+                }
+            }
+            isLooking = false
+        }
+    }
 
     fun applyResult(result: SearchResult) {
         name = result.name
@@ -75,12 +129,44 @@ fun AddDrinkSheet(
                 .padding(bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                if (editing != null) "Edit Drink" else "Add a Drink",
-                color = Espresso,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    if (editing != null) "Edit Drink" else "Add a Drink",
+                    color = Espresso,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+                if (isLooking) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp).padding(end = 4.dp),
+                        color = Clay,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    IconButton(onClick = { launchScanner() }) {
+                        Icon(Icons.Default.QrCodeScanner, "Scan barcode", tint = Clay)
+                    }
+                }
+            }
+
+            if (scanNotFound) {
+                Text(
+                    "Barcode not recognised — type a name below to search",
+                    color = Clay,
+                    fontSize = 12.sp
+                )
+            }
+
+            if (showScanner) {
+                BarcodeScannerDialog(
+                    onDetected = { onBarcodeDetected(it) },
+                    onDismiss = { showScanner = false }
+                )
+            }
 
             // Name with autocomplete
             Box {
@@ -88,6 +174,7 @@ fun AddDrinkSheet(
                     value = name,
                     onValueChange = {
                         name = it
+                        scanNotFound = false
                         suggestions = searchLocal(it)
                         isSearchingOnline = false
                     },
