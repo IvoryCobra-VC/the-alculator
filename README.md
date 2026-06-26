@@ -14,9 +14,6 @@
 
 ---
 
-> [!NOTE]
-> the Alculator is available on the **Google Play Store** (search "the Alculator") or as a direct sideload APK below. No account, no internet, no ads — everything happens on your device.
-
 ## Screenshots
 
 <p align="center">
@@ -43,12 +40,6 @@ Units are calculated the standard UK way: `ABV% × volume (ml) ÷ 1000`. Value =
 
 ## Install
 
-### Play Store *(recommended)*
-
-Search **"the Alculator"** on Google Play, or use the link on the store listing.
-
-### Sideload APK
-
 1. Download `the-alculator-v1.0.apk` from the [latest release](https://github.com/IvoryCobra-VC/the-alculator/releases/latest)
 2. Enable **Install from unknown sources** on your device (Settings → Apps → Special app access)
 3. Open the downloaded APK and install
@@ -74,7 +65,7 @@ Requires Android SDK (API 35) and JDK 17. The debug APK lands at
 `app/build/outputs/apk/debug/Alculator-debug.apk`.
 
 For a signed release build, add `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD`
-to `local.properties`, then run `./gradlew bundleRelease` (Play Store AAB) or `assembleRelease` (APK).
+to `local.properties`, then run `./gradlew assembleRelease`.
 
 ## Tech
 
