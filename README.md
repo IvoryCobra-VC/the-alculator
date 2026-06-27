@@ -40,7 +40,7 @@ Units are calculated the standard UK way: `ABV% × volume (ml) ÷ 1000`. Value =
 
 ## Install
 
-1. Download `the-alculator-v1.0.apk` from the [latest release](https://github.com/IvoryCobra-VC/the-alculator/releases/latest)
+1. Download `the-alculator-v1.5.apk` from the [latest release](https://github.com/IvoryCobra-VC/the-alculator/releases/latest)
 2. Enable **Install from unknown sources** on your device (Settings → Apps → Special app access)
 3. Open the downloaded APK and install
 
@@ -73,6 +73,26 @@ to `local.properties`, then run `./gradlew assembleRelease`.
 - `StateFlow` ViewModel — in-memory only, no persistence
 - `SwipeToDismissBox`, `ModalBottomSheet`, `lightColorScheme`
 - AGP 8.7.3 · Gradle 8.9 · compileSdk/targetSdk 35 · minSdk 26
+
+## Changelog
+
+### v1.5 — 2026-06-26
+- Removed barcode scanner; name autocomplete is the sole lookup method
+
+### v1.4 — 2026-06-26
+- Fixed add-drink sheet UX: keyboard auto-opens, no focus stealing, scrollable fields, full expand
+
+### v1.3 — 2026-06-26
+- Combined barcode scan and name autocomplete in the add-drink flow
+
+### v1.2 — 2026-06-26
+- Replaced barcode scanner with name autocomplete (Open Food Facts text search)
+
+### v1.1 — 2026-06-26
+- Added barcode scanner with Open Food Facts lookup to pre-fill drink name
+
+### v1.0 — 2026-06-26
+- Initial release: rank drinks by units per £, multipack support, volume unit switching, share rankings, limewash design
 
 ## License
 
